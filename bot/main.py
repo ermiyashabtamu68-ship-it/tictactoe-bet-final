@@ -34,7 +34,7 @@ async def main():
     # restarts, players in the middle of "searching for opponent"
     # or mid-conversation flows (like entering a deposit reference
     # number) don't lose their place.
-    storage = RedisStorage.from_url("redis://redis:6379/1")
+    storage = RedisStorage.from_url(settings.redis_url)
     dp = Dispatcher(storage=storage)
 
     api = ApiClient(base_url=settings.api_base_url)

@@ -19,6 +19,7 @@ class Settings:
     public_api_base_url: str   # the PUBLIC https URL of the API — needed for Mini App buttons,
                                 # since Telegram opens WebApp links in the user's browser/app,
                                 # not over Railway's internal network like api_base_url is.
+    redis_url: str
     telebirr_instructions: str
     nib_bank_instructions: str
 
@@ -30,9 +31,14 @@ def load_settings() -> Settings:
 
     api_base_url = os.getenv("API_BASE_URL", "http://api:8000")
 
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        raise RuntimeError("REDIS_URL is not set. Check your .env file.")
+
     return Settings(
         bot_token=bot_token,
         api_base_url=api_base_url,
+        redis_url=redis_url,
         public_api_base_url=os.getenv("PUBLIC_API_BASE_URL", api_base_url),
         telebirr_instructions=os.getenv(
             "TELEBIRR_INSTRUCTIONS",
