@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Deposits — TicTacToe Bet Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="dashboard.html">📊 Dashboard</a>
+        <a href="deposits.html" class="active">➕ Deposits</a>
+        <a href="withdrawals.html">💸 Withdrawals</a>
+        <a href="users.html">👤 Users</a>
+        <button class="secondary" style="margin-left:auto" onclick="logout()">Log out</button>
+    </div>
+
+    <h1>➕ Pending Deposits</h1>
+    <p style="color:#9ca3af">Check the screenshot and reference number against your real Telebirr/NIB Bank account before approving. Never approve based on the screenshot alone.</p>
+
+    <div id="deposits" class="card">Loading...</div>
+</div>
+
+<script src="api.js"></script>
+<script>
+requireLogin();
+
+async function loadDeposits() {
+    const box = document.getElementById("deposits");
+    try {
+        const deposits = await apiRequest("/admin/deposits?status=pending");
+        if (deposits.length === 0) {
+            box.innerHTML = "<p>No pending deposits. 🎉</p>";
+            return;
+        }
+        box.innerHTML = deposits.map(d => `
+            <div class="card">
+                <p><strong>Amount:</strong> ${d.amount} ETB &nbsp; <strong>Method:</strong> ${d.payment_method}</p>
+                <p><strong>Reference #:</strong> ${d.reference_number}</p>
+                <p><strong>Submitted:</strong> ${new Date(d.created_at).toLocaleString()}</p>
+                <p><img class="screenshot-thumb" id="thumb-${d.id}" alt="Loading screenshot..." onclick="viewFullScreenshot('${d.id}')"></p>
+                <button onclick="approveDeposit('${d.id}')">✅ Approve</button>
+                <button class="danger" onclick="rejectDeposit('${d.id}')">❌ Reject</button>
+            </div>
+        `).join("");
+
+        // Load each screenshot separately (needs an authenticated
+        // request, which a plain <img src="..."> tag can't send).
+        deposits.forEach(d => loadScreenshotThumb(d.id));
+    } catch (e) {
+        box.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+    }
+}
+
+async function loadScreenshotThumb(depositId) {
+    const img = document.getElementById(`thumb-${depositId}`);
+    try {
+        const response = await fetch(`/admin/deposits/${depositId}/screenshot`, {
+            headers: { "Authorization": "Bearer " + getToken() },
+        });
+        const blob = await response.blob();
+        img.src = URL.createObjectURL(blob);
+    } catch (e) {
+        img.alt = "Failed to load screenshot";
+    }
+}
+
+function viewFullScreenshot(depositId) {
+    const img = document.getElementById(`thumb-${depositId}`);
+    if (img && img.src) {
+        window.open(img.src, "_blank");
+    }
+}
+
+async function approveDeposit(id) {
+    if (!confirm("Confirm you have VERIFIED this payment in your real Telebirr/NIB account. Approve?")) return;
+    try {
+        await apiRequest(`/admin/deposits/${id}/approve`, { method: "POST" });
+        loadDeposits();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+async function rejectDeposit(id) {
+    const reason = prompt("Reason for rejection:");
+    if (!reason) return;
+    try {
+        await apiRequest(`/admin/deposits/${id}/reject`, {
+            method: "POST",
+            body: JSON.stringify({ reason }),
+        });
+        loadDeposits();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+loadDeposits();
+</script>
+</body>
+</html>

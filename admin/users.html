@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Users — TicTacToe Bet Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="dashboard.html">📊 Dashboard</a>
+        <a href="deposits.html">➕ Deposits</a>
+        <a href="withdrawals.html">💸 Withdrawals</a>
+        <a href="users.html" class="active">👤 Users</a>
+        <button class="secondary" style="margin-left:auto" onclick="logout()">Log out</button>
+    </div>
+
+    <h1>👤 Users</h1>
+    <input type="text" id="search" placeholder="Search by name, phone, or username..." style="max-width:400px" onkeydown="if(event.key==='Enter') loadUsers()">
+    <button onclick="loadUsers()">Search</button>
+
+    <div class="card" style="margin-top:16px">
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Phone</th><th>Status</th><th>Available</th><th>Locked</th><th>Registered</th><th>Action</th></tr>
+            </thead>
+            <tbody id="users-body">
+                <tr><td colspan="7">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="api.js"></script>
+<script>
+requireLogin();
+
+async function loadUsers() {
+    const body = document.getElementById("users-body");
+    const search = document.getElementById("search").value.trim();
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+
+    try {
+        const users = await apiRequest(`/admin/users${query}`);
+        if (users.length === 0) {
+            body.innerHTML = `<tr><td colspan="7">No users found.</td></tr>`;
+            return;
+        }
+        body.innerHTML = users.map(u => `
+            <tr>
+                <td>${u.full_name || "-"}</td>
+                <td>${u.phone_number || "-"}</td>
+                <td><span class="badge ${u.status}">${u.status}</span></td>
+                <td>${u.wallet ? u.wallet.available_balance : "-"} ETB</td>
+                <td>${u.wallet ? u.wallet.locked_balance : "-"} ETB</td>
+                <td>${new Date(u.registered_at).toLocaleDateString()}</td>
+                <td>
+                    ${u.status === "active"
+                        ? `<button class="danger" onclick="suspendUser('${u.internal_id}')">Suspend</button>`
+                        : `<button onclick="reactivateUser('${u.internal_id}')">Reactivate</button>`}
+                </td>
+            </tr>
+        `).join("");
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="7" class="error">Failed to load: ${e.message}</td></tr>`;
+    }
+}
+
+async function suspendUser(id) {
+    const reason = prompt("Reason for suspension:");
+    if (!reason) return;
+    try {
+        await apiRequest(`/admin/users/${id}/suspend`, {
+            method: "POST",
+            body: JSON.stringify({ reason }),
+        });
+        loadUsers();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+async function reactivateUser(id) {
+    try {
+        await apiRequest(`/admin/users/${id}/reactivate`, { method: "POST" });
+        loadUsers();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+loadUsers();
+</script>
+</body>
+</html>

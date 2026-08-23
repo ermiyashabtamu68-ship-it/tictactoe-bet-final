@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Withdrawals — TicTacToe Bet Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="dashboard.html">📊 Dashboard</a>
+        <a href="deposits.html">➕ Deposits</a>
+        <a href="withdrawals.html" class="active">💸 Withdrawals</a>
+        <a href="users.html">👤 Users</a>
+        <button class="secondary" style="margin-left:auto" onclick="logout()">Log out</button>
+    </div>
+
+    <h1>💸 Pending Withdrawals</h1>
+    <p style="color:#9ca3af">Send the payment manually via the method shown, then mark as Paid. Only mark Paid after you've actually sent the money.</p>
+
+    <div id="withdrawals" class="card">Loading...</div>
+</div>
+
+<script src="api.js"></script>
+<script>
+requireLogin();
+
+async function loadWithdrawals() {
+    const box = document.getElementById("withdrawals");
+    try {
+        const withdrawals = await apiRequest("/admin/withdrawals?status=pending");
+        if (withdrawals.length === 0) {
+            box.innerHTML = "<p>No pending withdrawals. 🎉</p>";
+            return;
+        }
+        box.innerHTML = withdrawals.map(w => `
+            <div class="card">
+                <p><strong>Amount:</strong> ${w.amount} ETB &nbsp; <strong>Method:</strong> ${w.payment_method}</p>
+                <p><strong>Send to:</strong> ${w.payment_details}</p>
+                <p><strong>Requested:</strong> ${new Date(w.created_at).toLocaleString()}</p>
+                <button onclick="markPaid('${w.id}')">✅ Mark Paid</button>
+                <button class="danger" onclick="rejectWithdrawal('${w.id}')">❌ Reject</button>
+            </div>
+        `).join("");
+    } catch (e) {
+        box.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+    }
+}
+
+async function markPaid(id) {
+    if (!confirm("Confirm you have ALREADY SENT this payment manually. Mark as paid?")) return;
+    try {
+        await apiRequest(`/admin/withdrawals/${id}/mark_paid`, { method: "POST" });
+        loadWithdrawals();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+async function rejectWithdrawal(id) {
+    const reason = prompt("Reason for rejection:");
+    if (!reason) return;
+    try {
+        await apiRequest(`/admin/withdrawals/${id}/reject`, {
+            method: "POST",
+            body: JSON.stringify({ reason }),
+        });
+        loadWithdrawals();
+    } catch (e) {
+        alert("Failed: " + e.message);
+    }
+}
+
+loadWithdrawals();
+</script>
+</body>
+</html>

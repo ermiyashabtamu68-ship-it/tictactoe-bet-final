@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard — TicTacToe Bet Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="dashboard.html" class="active">📊 Dashboard</a>
+        <a href="deposits.html">➕ Deposits</a>
+        <a href="withdrawals.html">💸 Withdrawals</a>
+        <a href="users.html">👤 Users</a>
+        <button class="secondary" style="margin-left:auto" onclick="logout()">Log out</button>
+    </div>
+
+    <h1>📊 Dashboard</h1>
+    <div id="stats" class="stats-grid card">Loading...</div>
+</div>
+
+<script src="api.js"></script>
+<script>
+requireLogin();
+
+async function loadStats() {
+    try {
+        const s = await apiRequest("/admin/dashboard");
+        document.getElementById("stats").innerHTML = `
+            ${statBox(s.total_users, "Total Users")}
+            ${statBox(s.active_users, "Active Users")}
+            ${statBox(s.games_played, "Games Played")}
+            ${statBox(s.active_matches, "Active Matches")}
+            ${statBox(s.total_stakes + " ETB", "Total Stakes")}
+            ${statBox(s.platform_fees + " ETB", "Platform Fees Earned")}
+            ${statBox(s.pending_deposits, "Pending Deposits")}
+            ${statBox(s.pending_withdrawals, "Pending Withdrawals")}
+        `;
+    } catch (e) {
+        document.getElementById("stats").innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+    }
+}
+
+function statBox(value, label) {
+    return `<div class="stat-box"><div class="value">${value}</div><div class="label">${label}</div></div>`;
+}
+
+loadStats();
+// Refresh every 15 seconds so the numbers stay current while the page is open
+setInterval(loadStats, 15000);
+</script>
+</body>
+</html>
