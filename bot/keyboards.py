@@ -32,12 +32,26 @@ def withdraw_method_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def open_app_keyboard(api_base_url: str) -> ReplyKeyboardMarkup:
+    """
+    The bot's main interface now: a single button that launches the
+    full Mini App (wallet, deposit, withdraw, play, friends, history,
+    profile — everything). api_base_url must be the API's public
+    https URL, same requirement as the game board WebApp buttons.
+    """
+    url = f"{api_base_url}/app-ui/"
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🚀 Open Ticarena", web_app=WebAppInfo(url=url))]],
+        resize_keyboard=True,
+    )
+
+
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     """The persistent bottom menu shown after /start."""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🎮 Play"), KeyboardButton(text="🔴 Checkers")],
-            [KeyboardButton(text="🎯 Play vs Friend")],
+            [KeyboardButton(text="🎯 Play vs Friend"), KeyboardButton(text="👥 Friends")],
             [KeyboardButton(text="💰 Wallet")],
             [KeyboardButton(text="➕ Deposit"), KeyboardButton(text="💸 Withdraw")],
             [KeyboardButton(text="📜 History"), KeyboardButton(text="👤 Profile")],

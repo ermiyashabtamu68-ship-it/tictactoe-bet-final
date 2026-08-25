@@ -8,6 +8,7 @@ route file we've built so far.
 
 import asyncio
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.core.rate_limit import limiter
 from app.routes import (
-    users, deposits, withdrawals, matchmaking, matches, challenges,
+    users, deposits, withdrawals, matchmaking, matches, challenges, friends, webapp,
     admin_auth, admin_deposits, admin_withdrawals,
     admin_dashboard, admin_users,
 )
@@ -49,6 +50,8 @@ app.include_router(withdrawals.router, tags=["withdrawals"])
 app.include_router(matchmaking.router, tags=["matchmaking"])
 app.include_router(matches.router, tags=["matches"])
 app.include_router(challenges.router, tags=["challenges"])
+app.include_router(friends.router, tags=["friends"])
+app.include_router(webapp.router, tags=["webapp"])
 app.include_router(admin_auth.router, tags=["admin"])
 app.include_router(admin_deposits.router, tags=["admin"])
 app.include_router(admin_withdrawals.router, tags=["admin"])
@@ -63,6 +66,21 @@ app.mount("/admin-panel", StaticFiles(directory="/app/admin_static", html=True),
 # Serves the checkers Mini App (visual board) at /checkers-app/
 # Opened from inside Telegram via a WebApp button the bot sends.
 app.mount("/checkers-app", StaticFiles(directory="/app/checkers_static", html=True), name="checkers_app")
+
+# Serves the Tic-Tac-Toe Mini App (visual board) at /tictactoe-app/
+# Same idea as checkers above — opened via a WebApp button.
+app.mount("/tictactoe-app", StaticFiles(directory="/app/tictactoe_static", html=True), name="tictactoe_app")
+
+# Serves the FULL Mini App — wallet, deposit, withdraw, play, friends,
+# history, profile — all in one place at /app/. This is what the bot's
+# single "🚀 Open App" button launches.
+app.mount("/app-ui", StaticFiles(directory="/app/webapp_static", html=True), name="full_app")
+
+# Deposit proof images uploaded directly through the Mini App (as
+# opposed to via a Telegram chat message, which the bot flow uses)
+# are saved here and streamed back only to logged-in admins via the
+# /admin/deposits/{id}/screenshot route — this mount is NOT public.
+os.makedirs("/app/uploads", exist_ok=True)
 
 
 @app.get("/health")

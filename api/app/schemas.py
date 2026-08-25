@@ -56,6 +56,14 @@ class WebAppCheckersMoveRequest(BaseModel):
     idempotency_key: str
 
 
+class WebAppMoveRequest(BaseModel):
+    # No telegram_user_id here on purpose, same reasoning as
+    # WebAppCheckersMoveRequest — identity comes from the signed
+    # X-Telegram-Init-Data header instead.
+    cell_position: int = Field(ge=0, le=8)
+    idempotency_key: str
+
+
 class CreateChallengeRequest(BaseModel):
     telegram_user_id: int
     opponent_username: str
@@ -71,6 +79,24 @@ class MakeMoveRequest(BaseModel):
     telegram_user_id: int
     cell_position: int = Field(ge=0, le=8)
     idempotency_key: str
+
+
+class FriendRequestCreate(BaseModel):
+    telegram_user_id: int
+    friend_username: str
+
+
+class FriendRequestRespond(BaseModel):
+    telegram_user_id: int
+    request_id: str
+    accept: bool
+
+
+class FriendInviteRequest(BaseModel):
+    telegram_user_id: int
+    friend_id: str
+    stake_amount: Decimal = Field(gt=0)
+    game_type: str = "tictactoe"
 
 
 class AdminReviewRequest(BaseModel):

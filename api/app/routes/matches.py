@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.telegram_auth import verify_init_data, InvalidInitDataError
-from app.schemas import MakeMoveRequest, CheckersMoveRequest, WebAppCheckersMoveRequest
+from app.schemas import MakeMoveRequest, CheckersMoveRequest, WebAppCheckersMoveRequest, WebAppMoveRequest
 from app.services.user_service import get_user_or_404
 from app.services import match_service, checkers_service
 from app.models.models import Match
@@ -134,6 +134,36 @@ def get_match_webapp(
 
     state = _match_response(match)
     state["you_are"] = "X" if user.internal_id == match.player_x_id else "O"
+    state["you_won"] = (
+        state["winner_id"] == str(user.internal_id) if state["winner_id"] else None
+    )
+    return state
+
+
+@router.post("/matches/{match_id}/move-webapp")
+@limiter.limit("30/minute")
+def make_move_webapp(
+    request: Request, match_id: str, payload: WebAppMoveRequest, db: Session = Depends(get_db),
+    x_telegram_init_data: str = Header(None),
+):
+    user = _get_webapp_user(db, x_telegram_init_data)
+
+    try:
+        state = match_service.make_move(
+            db,
+            match_id=uuid.UUID(match_id),
+            player_id=user.internal_id,
+            cell_position=payload.cell_position,
+            idempotency_key=payload.idempotency_key,
+        )
+    except match_service.InvalidMoveError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except match_service.MatchNotActiveError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    state["you_are"] = "X" if state.get("player_x_id") == str(user.internal_id) else "O"
     state["you_won"] = (
         state["winner_id"] == str(user.internal_id) if state["winner_id"] else None
     )

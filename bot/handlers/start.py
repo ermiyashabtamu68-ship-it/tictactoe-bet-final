@@ -20,13 +20,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from states import RegistrationStates
-from keyboards import main_menu_keyboard
+from keyboards import main_menu_keyboard, open_app_keyboard
 
 router = Router()
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, api, state: FSMContext):
+async def cmd_start(message: Message, api, state: FSMContext, settings):
     # Try a "silent" check first: if this Telegram ID is already
     # registered, the backend just returns their existing account
     # and we skip straight to the menu instead of asking again.
@@ -39,8 +39,8 @@ async def cmd_start(message: Message, api, state: FSMContext):
         )
         # If this succeeded, the user already existed — welcome them back.
         await message.answer(
-            "👋 Welcome back!",
-            reply_markup=main_menu_keyboard(),
+            "👋 Welcome back! Tap below to open Ticarena.",
+            reply_markup=open_app_keyboard(settings.public_api_base_url),
         )
         return
     except Exception:
@@ -73,7 +73,7 @@ async def name_entered(message: Message, state: FSMContext):
 
 
 @router.message(RegistrationStates.entering_phone)
-async def phone_entered(message: Message, state: FSMContext, api):
+async def phone_entered(message: Message, state: FSMContext, api, settings):
     phone = message.text.strip() if message.text else ""
     if len(phone) < 9:
         await message.answer("⚠️ Please enter a valid phone number.")
@@ -102,6 +102,6 @@ async def phone_entered(message: Message, state: FSMContext, api):
         "• Both players stake the same amount\n"
         "• Winner takes the pot minus a 5 ETB platform fee\n"
         "• A draw = full refund to both players, no fee\n\n"
-        "Use the menu below to get started.",
-        reply_markup=main_menu_keyboard(),
+        "Tap below to open Ticarena — wallet, games, friends, everything is in there.",
+        reply_markup=open_app_keyboard(settings.public_api_base_url),
     )

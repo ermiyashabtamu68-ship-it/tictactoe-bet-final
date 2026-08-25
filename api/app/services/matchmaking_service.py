@@ -82,7 +82,7 @@ def _challenge_key(username: str) -> str:
     return f"{CHALLENGE_KEY_PREFIX}{username.strip().lstrip('@').lower()}"
 
 
-def create_challenge(redis_client, db: Session, challenger, opponent_username: str, stake_amount: Decimal) -> dict:
+def create_challenge(redis_client, db: Session, challenger, opponent_username: str, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
     """
     Called when Player A wants to challenge a specific friend by
     their @username. Checks the challenger can afford the stake,
@@ -114,6 +114,7 @@ def create_challenge(redis_client, db: Session, challenger, opponent_username: s
         "challenger_telegram_id": challenger.telegram_user_id,
         "challenger_username": challenger.telegram_username,
         "stake_amount": str(stake_amount),
+        "game_type": game_type,
     }
     redis_client.set(_challenge_key(opponent.telegram_username), json.dumps(entry), ex=CHALLENGE_TTL_SECONDS)
 
@@ -148,8 +149,12 @@ def respond_challenge(redis_client, db: Session, responder, accept: bool) -> dic
 
     stake_amount = Decimal(data["stake_amount"])
     challenger_id = uuid.UUID(data["challenger_id"])
+    game_type = data.get("game_type", "tictactoe")
 
-    match = _create_match(db, player_a_id=challenger_id, player_b_id=responder.internal_id, stake_amount=stake_amount)
+    match = _create_match(
+        db, player_a_id=challenger_id, player_b_id=responder.internal_id,
+        stake_amount=stake_amount, game_type=game_type,
+    )
     return {
         "status": "matched",
         "match_id": str(match.id),

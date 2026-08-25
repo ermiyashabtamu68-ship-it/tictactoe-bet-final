@@ -41,6 +41,18 @@ async def get_deposit_screenshot(
     if deposit is None:
         raise HTTPException(status_code=404, detail="Deposit not found.")
 
+    # Mini App uploads are saved locally (see routes/webapp.py) and
+    # referenced as "webapp:<filename>" instead of a Telegram file_id,
+    # since there's no chat message to fetch the file from in that flow.
+    if deposit.screenshot_file_id.startswith("webapp:"):
+        filename = deposit.screenshot_file_id.split(":", 1)[1]
+        file_path = f"/app/uploads/{filename}"
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Uploaded screenshot not found.")
+        with open(file_path, "rb") as f:
+            content = f.read()
+        return StreamingResponse(iter([content]), media_type="image/jpeg")
+
     bot_token = os.getenv("BOT_TOKEN")
     if not bot_token:
         raise HTTPException(status_code=500, detail="Server is not configured with BOT_TOKEN.")

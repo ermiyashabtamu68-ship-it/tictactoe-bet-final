@@ -54,6 +54,23 @@ class User(Base):
     )
 
 
+class Friendship(Base):
+    __tablename__ = "friendships"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    requester_id = Column(UUID(as_uuid=True), ForeignKey("users.internal_id"), nullable=False, index=True)
+    addressee_id = Column(UUID(as_uuid=True), ForeignKey("users.internal_id"), nullable=False, index=True)
+    status = Column(Text, nullable=False, default="pending")
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("status IN ('pending','accepted','declined')", name="chk_friendship_status"),
+        CheckConstraint("requester_id <> addressee_id", name="chk_friendship_not_self"),
+        UniqueConstraint("requester_id", "addressee_id", name="uq_friend_pair"),
+    )
+
+
 class Wallet(Base):
     __tablename__ = "wallets"
 
