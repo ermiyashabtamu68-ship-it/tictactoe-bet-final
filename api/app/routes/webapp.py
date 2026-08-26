@@ -304,14 +304,14 @@ def respond_friend_request(
 
 
 @router.post("/friends/invite")
-def invite_friend(
+async def invite_friend(
     friend_id: str = Form(...), stake_amount: str = Form(...), game_type: str = Form("tictactoe"),
     db: Session = Depends(get_db), redis_client=Depends(get_redis),
     x_telegram_init_data: str = Header(None),
 ):
     user = _webapp_user(db, x_telegram_init_data)
     try:
-        result = friend_service.invite_friend(redis_client, db, user, friend_id, Decimal(stake_amount), game_type)
+        result = await friend_service.invite_friend(redis_client, db, user, friend_id, Decimal(stake_amount), game_type)
     except friend_service.FriendNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except friend_service.NotFriendsError as e:

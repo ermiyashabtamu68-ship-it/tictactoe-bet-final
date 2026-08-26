@@ -16,6 +16,7 @@ from sqlalchemy import or_, and_
 
 from app.models.models import Friendship, User
 from app.services.user_service import get_user_by_username
+from app.core import telegram_notify
 
 
 class FriendNotFoundError(Exception):
@@ -116,12 +117,15 @@ def are_friends(db: Session, user_a_id, user_b_id) -> bool:
     ).first() is not None
 
 
-def invite_friend(redis_client, db: Session, inviter: User, friend_id: str, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
+async def invite_friend(redis_client, db: Session, inviter: User, friend_id: str, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
     """
     Sends a match invite to an already-accepted friend, without
     needing to retype their @username. Under the hood this is the
     exact same pending-challenge mechanism 'Play vs Friend' uses —
-    we just look up the username automatically first.
+    we just look up the username automatically first, THEN push a
+    Telegram notification with Accept/Decline buttons to the friend
+    directly, since the Mini App invite has no chat handler already
+    running to do that for us the way the old in-chat flow did.
     """
     from app.services import matchmaking_service
 
@@ -132,6 +136,16 @@ def invite_friend(redis_client, db: Session, inviter: User, friend_id: str, stak
     if not are_friends(db, inviter.internal_id, friend.internal_id):
         raise NotFriendsError("You're not friends with this player yet.")
 
-    return matchmaking_service.create_challenge(
+    result = matchmaking_service.create_challenge(
         redis_client, db, inviter, friend.telegram_username, stake_amount, game_type=game_type,
     )
+
+    game_label = "Checkers" if game_type == "checkers" else "Tic-Tac-Toe"
+    await telegram_notify.send_message(
+        result["opponent_telegram_id"],
+        f"🎯 <b>@{inviter.telegram_username or inviter.telegram_user_id} "
+        f"challenged you to a {game_label} match for {stake_amount} ETB!</b>",
+        reply_markup=telegram_notify.challenge_response_markup(),
+    )
+
+    return result

@@ -94,10 +94,10 @@ def get_pending_requests(telegram_user_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/friends/invite")
-def invite_friend(payload: FriendInviteRequest, db: Session = Depends(get_db), redis_client=Depends(get_redis)):
+async def invite_friend(payload: FriendInviteRequest, db: Session = Depends(get_db), redis_client=Depends(get_redis)):
     user = get_user_or_404(db, payload.telegram_user_id)
     try:
-        result = friend_service.invite_friend(
+        result = await friend_service.invite_friend(
             redis_client, db, user, payload.friend_id, payload.stake_amount, payload.game_type,
         )
     except friend_service.FriendNotFoundError as e:
