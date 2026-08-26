@@ -112,6 +112,19 @@ def checkers_stake_selection_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def open_game_board_keyboard(api_base_url: str, match_id: str) -> InlineKeyboardMarkup:
+    """
+    The single button shown once a match is found — opens the real
+    game board inside the full Mini App (works for both Tic-Tac-Toe
+    and Checkers, the app figures out which board to render itself).
+    Replaces the old in-chat tappable board entirely.
+    """
+    url = f"{api_base_url}/app-ui/#/board/{match_id}"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Open Board", web_app=WebAppInfo(url=url))]
+    ])
+
+
 def open_checkers_board_keyboard(api_base_url: str, match_id: str) -> InlineKeyboardMarkup:
     """
     The button that opens the visual checkers board as a Telegram

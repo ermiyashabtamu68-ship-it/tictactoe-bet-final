@@ -24,8 +24,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
 from keyboards import (
-    stake_selection_keyboard, cancel_search_keyboard,
-    start_match_keyboard, board_keyboard,
+    stake_selection_keyboard, cancel_search_keyboard, open_game_board_keyboard,
 )
 
 router = Router()
@@ -44,7 +43,7 @@ async def play_pressed(message: Message):
 
 
 @router.callback_query(F.data.startswith("stake:"))
-async def stake_chosen(callback: CallbackQuery, api, state: FSMContext):
+async def stake_chosen(callback: CallbackQuery, api, state: FSMContext, settings):
     choice = callback.data.split(":", 1)[1]
 
     if choice == "cancel":
@@ -72,7 +71,7 @@ async def stake_chosen(callback: CallbackQuery, api, state: FSMContext):
         return
 
     if result["status"] == "matched":
-        await _show_match_found(callback.message, api, result["match_id"])
+        await _show_match_found(callback.message, api, result["match_id"], settings.public_api_base_url)
         await callback.answer()
         return
 
@@ -84,7 +83,7 @@ async def stake_chosen(callback: CallbackQuery, api, state: FSMContext):
     await callback.answer()
 
     asyncio.create_task(
-        _poll_for_match(callback.message, api, telegram_user_id, stake_amount, state)
+        _poll_for_match(callback.message, api, telegram_user_id, stake_amount, state, settings.public_api_base_url)
     )
 
 
@@ -101,7 +100,7 @@ async def cancel_search(callback: CallbackQuery, api, state: FSMContext):
     await callback.answer()
 
 
-async def _poll_for_match(message: Message, api, telegram_user_id: int, stake_amount: str, state: FSMContext):
+async def _poll_for_match(message: Message, api, telegram_user_id: int, stake_amount: str, state: FSMContext, api_base_url: str):
     """
     Checks every few seconds whether this player has been matched
     while they wait. Stops after POLL_MAX_ATTEMPTS (~2 minutes) and
@@ -122,13 +121,13 @@ async def _poll_for_match(message: Message, api, telegram_user_id: int, stake_am
             return  # balance issue or similar; stop polling silently
 
         if status["status"] == "matched":
-            await _show_match_found(message, api, status["match_id"])
+            await _show_match_found(message, api, status["match_id"], api_base_url)
             return
 
     await message.edit_text("⏱️ No opponent found in time. Please try again.")
 
 
-async def _show_match_found(message: Message, api, match_id: str):
+async def _show_match_found(message: Message, api, match_id: str, api_base_url: str):
     match = await api.get_match(match_id)
     stake = match["stake_amount"]
     payout = float(stake) * 2 - 2
@@ -138,20 +137,8 @@ async def _show_match_found(message: Message, api, match_id: str):
         f"💰 Stake: {stake} ETB\n"
         f"🏆 Winner prize: {payout:.0f} ETB\n\n"
         f"ℹ️ Draws are fully refunded. No moves within 45 seconds "
-        f"forfeits the match.",
-        reply_markup=start_match_keyboard(match_id),
+        f"forfeits the match.\n\n"
+        f"Tap below to open the board and play.",
+        reply_markup=open_game_board_keyboard(api_base_url, match_id),
         parse_mode="HTML",
     )
-
-
-@router.callback_query(F.data.startswith("match_start:"))
-async def start_match(callback: CallbackQuery, api):
-    match_id = callback.data.split(":", 1)[1]
-    match = await api.get_match(match_id)
-
-    turn_symbol = "❌" if match["current_turn"] == "X" else "⭕"
-    await callback.message.edit_text(
-        f"Current turn: {turn_symbol} Player",
-        reply_markup=board_keyboard(match["board"], match_id),
-    )
-    await callback.answer()
