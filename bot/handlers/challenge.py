@@ -19,7 +19,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
 from states import ChallengeStates
-from keyboards import friend_stake_selection_keyboard, challenge_response_keyboard, start_match_keyboard
+from keyboards import friend_stake_selection_keyboard, challenge_response_keyboard, open_game_board_keyboard
 from handlers.play import _show_match_found
 
 router = Router()
@@ -96,7 +96,7 @@ async def friend_username_entered(message: Message, state: FSMContext, api, bot:
 
 
 @router.callback_query(F.data == "challenge:accept")
-async def challenge_accepted(callback: CallbackQuery, api, bot: Bot):
+async def challenge_accepted(callback: CallbackQuery, api, bot: Bot, settings):
     try:
         result = await api.respond_challenge(callback.from_user.id, accept=True)
     except Exception as e:
@@ -104,16 +104,15 @@ async def challenge_accepted(callback: CallbackQuery, api, bot: Bot):
         await callback.answer()
         return
 
-    await _show_match_found(callback.message, api, result["match_id"])
+    await _show_match_found(callback.message, api, result["match_id"], settings.public_api_base_url)
     await callback.answer()
 
     # Also let the challenger know their friend accepted.
     try:
-        match = await api.get_match(result["match_id"])
         await bot.send_message(
             result["challenger_telegram_id"],
             "✅ <b>Your friend accepted!</b>",
-            reply_markup=start_match_keyboard(match["match_id"]),
+            reply_markup=open_game_board_keyboard(settings.public_api_base_url, result["match_id"]),
             parse_mode="HTML",
         )
     except Exception:
