@@ -272,6 +272,7 @@ async function renderBoard(matchId) {
       <span>${state.stake_amount} ETB</span>
       <span id="board-turn-label">Loading…</span>
     </div>
+    <div class="center-note" id="board-debug-line" style="margin-top:-8px;margin-bottom:8px"></div>
     <div id="${isCheckers ? "checkers-board" : "tictactoe-board"}"></div>
     <div id="board-result-banner" class="hidden">
       <div id="board-result-text"></div>
@@ -292,9 +293,13 @@ async function renderBoard(matchId) {
 
   function renderState(s) {
     const turnLabel = document.getElementById("board-turn-label");
+    const debugLine = document.getElementById("board-debug-line");
     const myTurn = s.status === "active" && s.current_turn === s.you_are;
     turnLabel.textContent = s.status !== "active" ? "Game over" : myTurn ? "Your turn" : "Opponent's turn";
     turnLabel.classList.toggle("your-turn", myTurn);
+    if (debugLine) {
+      debugLine.textContent = `(debug: you are ${s.you_are}, current turn is ${s.current_turn})`;
+    }
 
     if (s.status !== "active") {
       stopPolling();
