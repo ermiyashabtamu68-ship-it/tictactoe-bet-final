@@ -41,7 +41,7 @@ def open_app_keyboard(api_base_url: str) -> ReplyKeyboardMarkup:
     """
     url = f"{api_base_url}/app-ui/"
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🚀 Open Ticarena", web_app=WebAppInfo(url=url))]],
+        keyboard=[[KeyboardButton(text="🚀 Open Nova Bet", web_app=WebAppInfo(url=url))]],
         resize_keyboard=True,
     )
 

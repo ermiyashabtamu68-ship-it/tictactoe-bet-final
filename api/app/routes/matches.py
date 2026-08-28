@@ -129,11 +129,11 @@ def get_match_webapp(
     match = db.query(Match).filter(Match.id == uuid.UUID(match_id)).first()
     if match is None:
         raise HTTPException(status_code=404, detail="Match not found.")
-    if user.internal_id not in (match.player_x_id, match.player_o_id):
+    if str(user.internal_id) not in (str(match.player_x_id), str(match.player_o_id)):
         raise HTTPException(status_code=403, detail="You're not a player in this match.")
 
     state = _match_response(match)
-    state["you_are"] = "X" if user.internal_id == match.player_x_id else "O"
+    state["you_are"] = "X" if str(user.internal_id) == str(match.player_x_id) else "O"
     state["you_won"] = (
         state["winner_id"] == str(user.internal_id) if state["winner_id"] else None
     )
@@ -163,7 +163,7 @@ def make_move_webapp(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    state["you_are"] = "X" if state.get("player_x_id") == str(user.internal_id) else "O"
+    state["you_are"] = "X" if str(state.get("player_x_id")) == str(user.internal_id) else "O"
     state["you_won"] = (
         state["winner_id"] == str(user.internal_id) if state["winner_id"] else None
     )
@@ -194,7 +194,7 @@ def make_checkers_move_webapp(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    state["you_are"] = "X" if state.get("player_x_id") == str(user.internal_id) else "O"
+    state["you_are"] = "X" if str(state.get("player_x_id")) == str(user.internal_id) else "O"
     state["you_won"] = (
         state["winner_id"] == str(user.internal_id) if state["winner_id"] else None
     )

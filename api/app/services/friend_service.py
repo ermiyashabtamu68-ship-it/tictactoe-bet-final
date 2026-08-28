@@ -39,10 +39,22 @@ class NotFriendsError(Exception):
     pass
 
 
-def send_request(db: Session, requester: User, friend_username: str) -> Friendship:
-    addressee = get_user_by_username(db, friend_username)
+def send_request(db: Session, requester: User, friend_identifier: str) -> Friendship:
+    """
+    friend_identifier can be either an @username OR a numeric
+    Telegram ID (shown on each player's Profile screen as "Your ID").
+    Not every Telegram account has a public username, so the ID is
+    the one input guaranteed to always work.
+    """
+    friend_identifier = friend_identifier.strip().lstrip("@")
+
+    if friend_identifier.isdigit():
+        addressee = db.query(User).filter(User.telegram_user_id == int(friend_identifier)).first()
+    else:
+        addressee = get_user_by_username(db, friend_identifier)
+
     if addressee is None:
-        raise FriendNotFoundError(f"No registered player found with username '{friend_username}'.")
+        raise FriendNotFoundError(f"No registered player found for '{friend_identifier}'.")
 
     if addressee.internal_id == requester.internal_id:
         raise CannotFriendSelfError("You can't add yourself as a friend.")
@@ -136,14 +148,14 @@ async def invite_friend(redis_client, db: Session, inviter: User, friend_id: str
     if not are_friends(db, inviter.internal_id, friend.internal_id):
         raise NotFriendsError("You're not friends with this player yet.")
 
-    result = matchmaking_service.create_challenge(
-        redis_client, db, inviter, friend.telegram_username, stake_amount, game_type=game_type,
+    result = matchmaking_service.create_challenge_for_user(
+        redis_client, db, inviter, friend, stake_amount, game_type=game_type,
     )
 
     game_label = "Checkers" if game_type == "checkers" else "Tic-Tac-Toe"
     await telegram_notify.send_message(
         result["opponent_telegram_id"],
-        f"🎯 <b>@{inviter.telegram_username or inviter.telegram_user_id} "
+        f"🎯 <b>{inviter.full_name or inviter.telegram_username or inviter.telegram_user_id} "
         f"challenged you to a {game_label} match for {stake_amount} ETB!</b>",
         reply_markup=telegram_notify.challenge_response_markup(),
     )

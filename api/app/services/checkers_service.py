@@ -127,9 +127,9 @@ def make_move(
     if match.status != "active":
         raise MatchNotActiveError(f"Match {match_id} is not active (status={match.status}).")
 
-    if player_id == match.player_x_id:
+    if str(player_id) == str(match.player_x_id):
         symbol = "X"
-    elif player_id == match.player_o_id:
+    elif str(player_id) == str(match.player_o_id):
         symbol = "O"
     else:
         raise InvalidMoveError("You are not a player in this match.")

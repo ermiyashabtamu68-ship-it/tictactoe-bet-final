@@ -94,10 +94,13 @@ def make_move(
     if match.status != "active":
         raise MatchNotActiveError(f"Match {match_id} is not active (status={match.status}).")
 
-    # Figure out which symbol this player controls
-    if player_id == match.player_x_id:
+    # Figure out which symbol this player controls. Compared as
+    # strings, not raw UUID objects — belt-and-suspenders against any
+    # type drift between how the id was loaded vs passed in, since a
+    # silent mismatch here means the player can never move.
+    if str(player_id) == str(match.player_x_id):
         player_symbol = "X"
-    elif player_id == match.player_o_id:
+    elif str(player_id) == str(match.player_o_id):
         player_symbol = "O"
     else:
         raise InvalidMoveError("This player is not part of this match.")

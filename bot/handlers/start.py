@@ -39,7 +39,7 @@ async def cmd_start(message: Message, api, state: FSMContext, settings):
         )
         # If this succeeded, the user already existed — welcome them back.
         await message.answer(
-            "👋 Welcome back! Tap below to open Ticarena.",
+            "👋 Welcome back! Tap below to open Nova Bet.",
             reply_markup=open_app_keyboard(settings.public_api_base_url),
         )
         return
@@ -55,7 +55,7 @@ async def cmd_start(message: Message, api, state: FSMContext, settings):
 
     await state.set_state(RegistrationStates.entering_name)
     await message.answer(
-        "👋 Welcome to TicTacToe Bet!\n\n"
+        "👋 Welcome to Nova Bet!\n\n"
         "Let's set up your account. What's your full name?"
     )
 
@@ -102,6 +102,6 @@ async def phone_entered(message: Message, state: FSMContext, api, settings):
         "• Both players stake the same amount\n"
         "• Winner takes the pot minus a 5 ETB platform fee\n"
         "• A draw = full refund to both players, no fee\n\n"
-        "Tap below to open Ticarena — wallet, games, friends, everything is in there.",
+        "Tap below to open Nova Bet — wallet, games, friends, everything is in there.",
         reply_markup=open_app_keyboard(settings.public_api_base_url),
     )

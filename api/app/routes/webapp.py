@@ -155,8 +155,8 @@ async def create_deposit(
         amount_dec = Decimal(amount)
     except InvalidOperation:
         raise HTTPException(status_code=400, detail="Invalid amount.")
-    if amount_dec <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive.")
+    if amount_dec < Decimal("25"):
+        raise HTTPException(status_code=400, detail="Minimum deposit is 25 ETB.")
 
     ext = os.path.splitext(screenshot.filename or "")[1] or ".jpg"
     saved_name = f"{uuid.uuid4()}{ext}"
@@ -197,6 +197,8 @@ def create_withdrawal(
         amount_dec = Decimal(amount)
     except InvalidOperation:
         raise HTTPException(status_code=400, detail="Invalid amount.")
+    if amount_dec < Decimal("25"):
+        raise HTTPException(status_code=400, detail="Minimum withdrawal is 25 ETB.")
 
     withdrawal = Withdrawal(
         user_id=user.internal_id, amount=amount_dec,
@@ -216,6 +218,30 @@ def create_withdrawal(
 
 
 # ---------------- Matchmaking ----------------
+
+@router.get("/matchmaking/open")
+def list_open_matches(db: Session = Depends(get_db), redis_client=Depends(get_redis), x_telegram_init_data: str = Header(None)):
+    user = _webapp_user(db, x_telegram_init_data)
+    return {"open_matches": matchmaking_service.list_open_matches(redis_client, db, user.internal_id)}
+
+
+@router.post("/matchmaking/join-open")
+def join_open_match(
+    opponent_id: str = Form(...), stake_amount: str = Form(...), game_type: str = Form("tictactoe"),
+    db: Session = Depends(get_db), redis_client=Depends(get_redis),
+    x_telegram_init_data: str = Header(None),
+):
+    user = _webapp_user(db, x_telegram_init_data)
+    try:
+        result = matchmaking_service.join_open_match(
+            redis_client, db, user.internal_id, uuid.UUID(opponent_id), Decimal(stake_amount), game_type,
+        )
+    except matchmaking_service.OpponentNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except matchmaking_service.InsufficientBalanceForStakeError:
+        raise HTTPException(status_code=400, detail="Insufficient balance for this stake.")
+    return result
+
 
 @router.post("/matchmaking/join")
 def join_queue(

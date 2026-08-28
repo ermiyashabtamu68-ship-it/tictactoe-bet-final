@@ -1,4 +1,4 @@
-/* app.js — the full Ticarena Mini App. One page, hash-based router,
+/* app.js — the full Nova Bet Mini App. One page, hash-based router,
  * screens for everything the bot used to do in chat (wallet, deposit,
  * withdraw, play, friends, history, profile) plus both game boards. */
 
@@ -99,7 +99,7 @@ navButtons.forEach((btn) => {
 function renderRegister() {
   screenEl.innerHTML = `
     <div class="card">
-      <h2>👋 Welcome to Ticarena</h2>
+      <h2>👋 Welcome to Nova Bet</h2>
       <p class="center-note" style="text-align:left">Let's set up your account.</p>
       <div class="field">
         <label>Full name</label>
@@ -172,16 +172,53 @@ async function renderHome() {
 
 /* ---------------- Play ---------------- */
 
-function renderPlayChooseGame() {
+async function renderPlayChooseGame() {
+  screenEl.innerHTML = `<div class="spinner"></div>`;
+  const data = await apiGet("/webapp/matchmaking/open").catch(() => ({ open_matches: [] }));
+  const open = data.open_matches;
+
   screenEl.innerHTML = `
+    ${open.length ? `
     <div class="card">
-      <h2>🎮 Choose a game</h2>
+      <h2>⏳ Waiting players — join one</h2>
+      ${open.map((m) => `
+        <div class="list-row">
+          <div>
+            <div class="friend-name">${m.display_name}</div>
+            <div class="friend-username">${m.game_type === "checkers" ? "🔴 Checkers" : "✕⭕ Tic-Tac-Toe"} · ${m.stake_amount} ETB</div>
+          </div>
+          <button class="btn" style="margin:0;width:auto;padding:8px 14px" data-join-open="${m.user_id}" data-stake="${m.stake_amount}" data-game="${m.game_type}">Join</button>
+        </div>
+      `).join("")}
+    </div>` : ""}
+
+    <div class="card">
+      <h2>🎮 Or start a new game</h2>
       <button class="btn" id="play-ttt">✕⭕ Tic-Tac-Toe</button>
       <button class="btn secondary" id="play-checkers">🔴 Checkers</button>
     </div>
   `;
   document.getElementById("play-ttt").addEventListener("click", () => renderPlayChooseStake("tictactoe"));
   document.getElementById("play-checkers").addEventListener("click", () => renderPlayChooseStake("checkers"));
+
+  screenEl.querySelectorAll("[data-join-open]").forEach((btn) => {
+    btn.addEventListener("click", () => joinOpenMatch(btn.dataset.joinOpen, btn.dataset.stake, btn.dataset.game));
+  });
+}
+
+async function joinOpenMatch(opponentId, stake, gameType) {
+  screenEl.innerHTML = `<div class="spinner"></div><div class="center-note">Joining match…</div>`;
+  try {
+    const fd = new FormData();
+    fd.append("opponent_id", opponentId);
+    fd.append("stake_amount", stake);
+    fd.append("game_type", gameType);
+    const result = await apiPostForm("/webapp/matchmaking/join-open", fd);
+    window.location.hash = `#/board/${result.match_id}`;
+  } catch (err) {
+    tg.showAlert(err.message || "That player is no longer available.");
+    renderPlayChooseGame();
+  }
 }
 
 function renderPlayChooseStake(gameType) {
@@ -455,7 +492,7 @@ async function renderFriends() {
     <div class="card">
       <h2>➕ Add a friend</h2>
       <div class="field">
-        <input id="add-friend-username" placeholder="@username" />
+        <input id="add-friend-username" placeholder="@username or their ID" />
       </div>
       <div class="error-text" id="add-friend-error"></div>
       <button class="btn" id="add-friend-btn">Send request</button>
@@ -628,7 +665,7 @@ function renderDepositForm(content) {
       </div>
       <div class="field">
         <label>Amount (ETB)</label>
-        <input id="dep-amount" type="number" placeholder="e.g. 100" />
+        <input id="dep-amount" type="number" min="25" placeholder="Minimum 25 ETB" />
       </div>
       <div class="field">
         <label>Reference number</label>
@@ -693,7 +730,7 @@ function renderWithdrawForm(content) {
       </div>
       <div class="field">
         <label>Amount (ETB)</label>
-        <input id="wd-amount" type="number" placeholder="e.g. 100" />
+        <input id="wd-amount" type="number" min="25" placeholder="Minimum 25 ETB" />
       </div>
       <div class="field">
         <label>Payment details</label>
@@ -764,10 +801,30 @@ async function renderProfile() {
       <p class="friend-username">@${info?.telegram_username || "—"}</p>
     </div>
     <div class="card">
+      <h2>🪪 Your ID</h2>
+      <p class="center-note" style="text-align:left;margin-bottom:10px">
+        Share this with friends so they can add you — works even if
+        you don't have a Telegram username set.
+      </p>
+      <div class="stat-row">
+        <span class="stat-value" id="profile-id-value" style="font-size:20px">${info?.telegram_user_id || "—"}</span>
+        <button class="btn secondary" id="profile-id-copy" style="margin:0;width:auto;padding:8px 14px">Copy</button>
+      </div>
+    </div>
+    <div class="card">
       <h2>❓ Need help?</h2>
       <p class="center-note" style="text-align:left">Contact support from the Telegram chat with this bot for deposit/withdrawal issues or anything else.</p>
     </div>
   `;
+  const copyBtn = document.getElementById("profile-id-copy");
+  if (copyBtn && info?.telegram_user_id) {
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(String(info.telegram_user_id)).catch(() => {});
+      tg.HapticFeedback.notificationOccurred("success");
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+    });
+  }
 }
 
 /* ---------------- Boot ---------------- */

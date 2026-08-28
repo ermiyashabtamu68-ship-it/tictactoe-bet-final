@@ -78,25 +78,18 @@ def _queue_key(stake_amount: Decimal, game_type: str = "tictactoe") -> str:
     return f"{QUEUE_KEY_PREFIX}{game_type}:{stake_amount}"
 
 
-def _challenge_key(username: str) -> str:
-    return f"{CHALLENGE_KEY_PREFIX}{username.strip().lstrip('@').lower()}"
+def _challenge_key(telegram_user_id: int) -> str:
+    return f"{CHALLENGE_KEY_PREFIX}{telegram_user_id}"
 
 
-def create_challenge(redis_client, db: Session, challenger, opponent_username: str, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
+def _create_challenge_for_opponent(redis_client, db: Session, challenger, opponent, stake_amount: Decimal, game_type: str) -> dict:
     """
-    Called when Player A wants to challenge a specific friend by
-    their @username. Checks the challenger can afford the stake,
-    looks up the opponent, and stores the pending challenge in Redis
-    keyed by the OPPONENT's username so their side can find it when
-    they respond. The opponent's balance is only checked when they
-    actually accept (it may change in the meantime).
+    Shared core used by both entry points below. Keyed by the
+    OPPONENT's telegram_user_id rather than their @username, since
+    not every Telegram account has a public username set — using
+    the id means an invite always works, regardless of that.
     """
-    from app.services.user_service import get_user_by_username
     from app.services import wallet_service
-
-    opponent = get_user_by_username(db, opponent_username)
-    if opponent is None:
-        raise OpponentNotFoundError(f"No registered player found with username '{opponent_username}'.")
 
     if opponent.internal_id == challenger.internal_id:
         raise CannotChallengeSelfError("You can't challenge yourself.")
@@ -116,7 +109,7 @@ def create_challenge(redis_client, db: Session, challenger, opponent_username: s
         "stake_amount": str(stake_amount),
         "game_type": game_type,
     }
-    redis_client.set(_challenge_key(opponent.telegram_username), json.dumps(entry), ex=CHALLENGE_TTL_SECONDS)
+    redis_client.set(_challenge_key(opponent.telegram_user_id), json.dumps(entry), ex=CHALLENGE_TTL_SECONDS)
 
     return {
         "opponent_telegram_id": opponent.telegram_user_id,
@@ -124,18 +117,42 @@ def create_challenge(redis_client, db: Session, challenger, opponent_username: s
     }
 
 
+def create_challenge(redis_client, db: Session, challenger, opponent_username: str, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
+    """
+    Called when Player A wants to challenge a specific friend by
+    their @username (the original chat-based flow). Looks the
+    opponent up by username first, then delegates to the shared core.
+    """
+    from app.services.user_service import get_user_by_username
+
+    opponent = get_user_by_username(db, opponent_username)
+    if opponent is None:
+        raise OpponentNotFoundError(f"No registered player found with username '{opponent_username}'.")
+
+    return _create_challenge_for_opponent(redis_client, db, challenger, opponent, stake_amount, game_type)
+
+
+def create_challenge_for_user(redis_client, db: Session, challenger, opponent, stake_amount: Decimal, game_type: str = "tictactoe") -> dict:
+    """
+    Used by the Friends system, where the opponent is already a known
+    User (not just a typed-in username) — works even if that friend
+    has no public @username set, unlike create_challenge() above.
+    """
+    if opponent.internal_id == challenger.internal_id:
+        raise CannotChallengeSelfError("You can't challenge yourself.")
+    return _create_challenge_for_opponent(redis_client, db, challenger, opponent, stake_amount, game_type)
+
+
 def respond_challenge(redis_client, db: Session, responder, accept: bool) -> dict:
     """
     Called when the challenged friend presses Accept or Decline.
-    We look up the challenge by the RESPONDER's own username (that's
-    how it was stored). On accept, reuses _create_match — the exact
-    same stake-locking logic random matchmaking uses, so there's no
-    separate code path that could drift out of sync or be less safe.
+    We look up the challenge by the RESPONDER's own telegram_user_id
+    (that's how it was stored — always present, unlike a username).
+    On accept, reuses _create_match — the exact same stake-locking
+    logic random matchmaking uses, so there's no separate code path
+    that could drift out of sync or be less safe.
     """
-    if not responder.telegram_username:
-        raise ChallengeNotFoundError("No pending challenge found.")
-
-    key = _challenge_key(responder.telegram_username)
+    key = _challenge_key(responder.telegram_user_id)
     raw = redis_client.get(key)
     if raw is None:
         raise ChallengeNotFoundError("No pending challenge found (it may have expired).")
@@ -226,6 +243,73 @@ def join_queue(
             db, player_a_id=opponent_id, player_b_id=user_id,
             stake_amount=stake_amount, game_type=game_type,
         )
+        return {"status": "matched", "match_id": str(match.id)}
+
+
+STAKE_TIERS = [Decimal("10"), Decimal("20"), Decimal("50"), Decimal("100")]
+GAME_TYPES = ["tictactoe", "checkers"]
+
+
+def list_open_matches(redis_client: redis.Redis, db: Session, exclude_user_id: uuid.UUID) -> list[dict]:
+    """
+    Everyone currently sitting in a matchmaking queue, waiting for a
+    random opponent — shown as a browsable lobby so a player can pick
+    exactly who/what stake to join instead of only random pairing.
+    """
+    from app.models.models import User
+
+    open_matches = []
+    for game_type in GAME_TYPES:
+        for stake_amount in STAKE_TIERS:
+            key = _queue_key(stake_amount, game_type)
+            for raw in redis_client.lrange(key, 0, -1):
+                data = json.loads(raw)
+                waiting_user_id = uuid.UUID(data["user_id"])
+                if waiting_user_id == exclude_user_id:
+                    continue
+                user = db.query(User).filter(User.internal_id == waiting_user_id).first()
+                if user is None:
+                    continue
+                open_matches.append({
+                    "user_id": str(waiting_user_id),
+                    "display_name": user.full_name or user.telegram_username or "Player",
+                    "game_type": game_type,
+                    "stake_amount": str(stake_amount),
+                    "joined_at": data["joined_at"],
+                })
+    open_matches.sort(key=lambda m: m["joined_at"], reverse=True)
+    return open_matches
+
+
+def join_open_match(redis_client: redis.Redis, db: Session, joiner_id: uuid.UUID, opponent_id: uuid.UUID, stake_amount: Decimal, game_type: str) -> dict:
+    """
+    Joins a SPECIFIC waiting player picked from the open-matches
+    lobby, instead of whoever happens to be first in the queue.
+    """
+    from app.services import wallet_service
+
+    key = _queue_key(stake_amount, game_type)
+    lock = redis_client.lock(f"matchmaking:lock:{game_type}:{stake_amount}", timeout=10)
+    with lock:
+        raw_items = redis_client.lrange(key, 0, -1)
+        target_raw = None
+        for raw in raw_items:
+            data = json.loads(raw)
+            if data["user_id"] == str(opponent_id):
+                target_raw = raw
+                break
+
+        if target_raw is None:
+            raise OpponentNotFoundError("That player is no longer waiting (they may have already been matched).")
+
+        wallet = db.query(wallet_service.Wallet).filter(
+            wallet_service.Wallet.user_id == joiner_id
+        ).first()
+        if wallet is None or wallet.available_balance < stake_amount:
+            raise InsufficientBalanceForStakeError(f"User {joiner_id} does not have {stake_amount} ETB available.")
+
+        redis_client.lrem(key, 1, target_raw)
+        match = _create_match(db, player_a_id=opponent_id, player_b_id=joiner_id, stake_amount=stake_amount, game_type=game_type)
         return {"status": "matched", "match_id": str(match.id)}
 
 
