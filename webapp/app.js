@@ -309,7 +309,6 @@ async function renderBoard(matchId) {
       <span>${state.stake_amount} ETB</span>
       <span id="board-turn-label">Loading…</span>
     </div>
-    <div class="center-note" id="board-debug-line" style="margin-top:-8px;margin-bottom:8px"></div>
     <div id="${isCheckers ? "checkers-board" : "tictactoe-board"}"></div>
     <div id="board-result-banner" class="hidden">
       <div id="board-result-text"></div>
@@ -330,13 +329,9 @@ async function renderBoard(matchId) {
 
   function renderState(s) {
     const turnLabel = document.getElementById("board-turn-label");
-    const debugLine = document.getElementById("board-debug-line");
     const myTurn = s.status === "active" && s.current_turn === s.you_are;
     turnLabel.textContent = s.status !== "active" ? "Game over" : myTurn ? "Your turn" : "Opponent's turn";
     turnLabel.classList.toggle("your-turn", myTurn);
-    if (debugLine) {
-      debugLine.textContent = `(debug: you are ${s.you_are}, current turn is ${s.current_turn})`;
-    }
 
     if (s.status !== "active") {
       stopPolling();
@@ -673,8 +668,8 @@ function renderDepositForm(content) {
       </div>
       <div class="field">
         <label>Payment screenshot</label>
-        <div class="file-upload" id="dep-file-label">Tap to choose a screenshot</div>
-        <input id="dep-file" type="file" accept="image/*" style="display:none" />
+        <label class="file-upload" id="dep-file-label" for="dep-file">Tap to choose a screenshot</label>
+        <input id="dep-file" type="file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" />
       </div>
       <div class="error-text" id="dep-error"></div>
       <button class="btn" id="dep-submit">Submit deposit</button>
@@ -682,7 +677,6 @@ function renderDepositForm(content) {
   `;
   const fileLabel = document.getElementById("dep-file-label");
   const fileInput = document.getElementById("dep-file");
-  fileLabel.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => {
     if (fileInput.files[0]) {
       fileLabel.textContent = `✅ ${fileInput.files[0].name}`;
